@@ -1,0 +1,4 @@
+# .gitignore file contents
+model_cache/
+*.bin
+*.gguf

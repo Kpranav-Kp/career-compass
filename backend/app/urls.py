@@ -1,7 +1,9 @@
 from django.urls import path
-from .views import ResumeUploadView, home_view
+from .views import HealthCheckView, ResumeSkillExtractionView
+from .views import home
 
 urlpatterns = [
-    path("",home_view,name='home'),
-    path('upload/', ResumeUploadView.as_view(), name='resume-upload'),
+    path('', home, name='home'),
+    path('', HealthCheckView.as_view()),  # Health check
+    path('api/extract-skills/', ResumeSkillExtractionView.as_view(), name='extract-skills'),
 ]
