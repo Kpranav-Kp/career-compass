@@ -1,4 +1,8 @@
 # .gitignore file contents
+<<<<<<< HEAD
 model_cache/
 *.bin
 *.gguf
+=======
+model_cache/
+>>>>>>> 06d1d3e16f939e8a480e80761d70ca751f805386
