@@ -4,6 +4,8 @@ from django.core.mail import send_mail
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.permissions import AllowAny
+from rest_framework_simplejwt.tokens import RefreshToken
 from .models import User, Token, Resume
 from .serializers import UserSerializer, TokenSerializer, ResumeSerializer
 from django.conf import settings
@@ -38,6 +40,7 @@ def mail_template(content, button_url, button_text):
             </html>"""
 
 class ResumeSkillExtractionView(APIView):
+    permission_classes = [AllowAny]
     def post(self, request, *args, **kwargs):
         if 'file' not in request.FILES:
             return Response({"error": "No file provided"}, status=status.HTTP_400_BAD_REQUEST)
@@ -93,6 +96,7 @@ class ResumeSkillExtractionView(APIView):
 
 
 class ResetPasswordView(APIView):
+    permission_classes = [AllowAny]
     def post(self, request, format=None):
         user_id = request.data["id"]
         token = request.data["token"]
@@ -133,6 +137,7 @@ class ResetPasswordView(APIView):
 
 
 class ForgotPasswordView(APIView):
+    permission_classes = [AllowAny]
     def post(self, request, format=None):
         email = request.data["email"]
         user = User.objects.get(email=email)
@@ -187,6 +192,7 @@ class ForgotPasswordView(APIView):
 
 
 class RegistrationView(APIView):
+    permission_classes = [AllowAny]
     def post(self, request, format=None):
         request.data["password"] = make_password(
             password=request.data["password"], salt=SALT
@@ -209,11 +215,16 @@ class RegistrationView(APIView):
 
 
 class LoginView(APIView):
+    permission_classes = [AllowAny]
     def post(self, request, format=None):
         email = request.data["email"]
         password = request.data["password"]
         hashed_password = make_password(password=password, salt=SALT)
-        user = User.objects.get(email=email)
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            return Response({"success": False, "message": "Invalid Login Credentials!"}, status=status.HTTP_200_OK)
+
         if user is None or user.password != hashed_password:
             return Response(
                 {
@@ -223,7 +234,14 @@ class LoginView(APIView):
                 status=status.HTTP_200_OK,
             )
         else:
+            # create JWT tokens
+            refresh = RefreshToken.for_user(user)
             return Response(
-                {"success": True, "message": "You are now logged in!"},
+                {
+                    "success": True,
+                    "message": "You are now logged in!",
+                    "access": str(refresh.access_token),
+                    "refresh": str(refresh),
+                },
                 status=status.HTTP_200_OK,
             )
