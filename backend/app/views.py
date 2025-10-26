@@ -109,8 +109,10 @@ class ResumeSkillExtractionView(APIView):
             except Exception:
                 pass
 
+            # Save only filename and skills (do not persist the uploaded file)
+            filename = getattr(file_obj, 'name', None)
             resume = Resume.objects.create(
-                file=file_obj,
+                file_name=filename,
                 role=role,
                 extracted_skills=", ".join(extracted_skills),
                 recommended_skills=", ".join(recommended_skills) if recommended_skills else None

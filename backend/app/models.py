@@ -1,7 +1,8 @@
 from django.db import models
 
 class Resume(models.Model):
-    file = models.FileField(upload_to='resumes/')
+    # store only the original filename (no file upload/storage)
+    file_name = models.CharField(max_length=255, blank=True, null=True)
     role = models.CharField(max_length=120, blank=True)
     extracted_skills = models.TextField(blank=True, null=True)  # comma separated
     recommended_skills = models.TextField(blank=True, null=True)
