@@ -23,4 +23,3 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/extract-skills/', include('app.urls')),  # include app's urls
 ]
-

@@ -2,9 +2,10 @@ import os
 from openai import OpenAI
 from typing import List
 
-OPENROUTER_API_KEY = "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"
+API_KEY = os.environ.get("OPENROUTER_API_KEY")
+if not API_KEY:
+    raise RuntimeError("Set OPENROUTER_API_KEY in env")
 
-API_KEY = OPENROUTER_API_KEY
 # Configure client to OpenRouter endpoint
 client = OpenAI(
     base_url="https://openrouter.ai/api/v1",

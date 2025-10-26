@@ -17,6 +17,17 @@ import os
 
 load_dotenv()
 
+# Email Configuration
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_HOST = "smtp.gmail.com"
+EMAIL_USE_TLS = True
+EMAIL_PORT = 587
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')  # Get from environment variable
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')  # Get from environment variable
+
+# Timezone setting
+TIME_ZONE = 'Asia/Kolkata'
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -57,8 +68,8 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = 'backend.urls'
 
-CORS_ALLOW_ALL_ORIGINS = [
-    "http://localhost:5173",
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
 ]
 
 TEMPLATES = [
