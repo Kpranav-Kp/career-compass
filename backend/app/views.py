@@ -4,10 +4,11 @@ from django.core.mail import send_mail
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
 from .models import User, Token, Resume
 from .serializers import UserSerializer, TokenSerializer, ResumeSerializer
+from .utils.skill_service import create_skill_roadmap, analyze_market_relevance
 from django.conf import settings
 from datetime import datetime, timedelta
 import hashlib
