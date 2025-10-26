@@ -21,14 +21,16 @@ export default function Login(){
   };
 
   return (
-    <div className="max-w-md mx-auto">
-      <h2 className="text-xl mb-4">Login</h2>
-      <form onSubmit={submit} className="space-y-3">
-        <input name="email" value={form.email} onChange={onChange} className="w-full p-2 border" placeholder="Email" />
-        <input name="password" value={form.password} onChange={onChange} type="password" className="w-full p-2 border" placeholder="Password" />
-        <button className="bg-green-600 text-white px-4 py-2 rounded">Login</button>
-      </form>
-      {msg && <p className="mt-3">{msg}</p>}
+    <div className="min-h-[60vh] flex items-center justify-center">
+      <div className="w-full max-w-md bg-white shadow rounded p-6">
+        <h2 className="text-2xl mb-4 font-semibold">Login</h2>
+        <form onSubmit={submit} className="space-y-3">
+          <input name="email" value={form.email} onChange={onChange} className="w-full p-2 border rounded" placeholder="Email" />
+          <input name="password" value={form.password} onChange={onChange} type="password" className="w-full p-2 border rounded" placeholder="Password" />
+          <button className="w-full bg-green-600 text-white px-4 py-2 rounded">Login</button>
+        </form>
+        {msg && <p className="mt-3 text-sm text-red-600">{msg}</p>}
+      </div>
     </div>
   );
 }

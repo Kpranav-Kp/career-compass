@@ -60,6 +60,41 @@ class ResumeSkillExtractionView(APIView):
             # normalize output to list
             extracted_skills = [s.strip() for s in extracted_text.split(",") if s.strip()]
 
+            # Fallback: if model returned nothing, do a simple keyword-based extraction
+            if not extracted_skills:
+                # small curated set of common skills (can be extended)
+                SKILL_KEYWORDS = [
+                    "python",
+                    "sql",
+                    "machine learning",
+                    "data visualization",
+                    "statistical analysis",
+                    "pandas",
+                    "numpy",
+                    "tensorflow",
+                    "pytorch",
+                    "scikit-learn",
+                    "r",
+                    "excel",
+                    "aws",
+                    "docker",
+                    "kubernetes",
+                    "java",
+                    "c++",
+                    "javascript",
+                    "react",
+                    "node",
+                    "git",
+                ]
+                text_lower = resume_text.lower()
+                found = []
+                for kw in SKILL_KEYWORDS:
+                    if kw in text_lower and kw not in found:
+                        # normalize keywords (title-case for display)
+                        found.append(kw)
+                # normalize display format: capitalize words appropriately
+                extracted_skills = [s.title() for s in found]
+
             # 3) call mistral to recommend additional skills (if role provided)
             recommended_skills = []
             if role:
