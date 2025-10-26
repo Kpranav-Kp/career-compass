@@ -9,7 +9,8 @@ class ResumeSerializer(serializers.ModelSerializer):
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ["name", "email", "password", "country", "phone"]
+        # country is optional at model level; frontend doesn't send it now
+        fields = ["name", "email", "password", "phone"]
 
 
 class TokenSerializer(serializers.ModelSerializer):

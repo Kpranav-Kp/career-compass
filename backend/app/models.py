@@ -24,7 +24,7 @@ class User(models.Model):
     email = models.EmailField(unique=True)
     password = models.CharField(max_length=255)
     phone = models.CharField(max_length=10, null=True)
-    country = models.CharField(max_length=63)
+    country = models.CharField(max_length=63, blank=True, null=True)
 
     def __str__(self) -> str:
         return self.name
