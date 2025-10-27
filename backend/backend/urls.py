@@ -18,8 +18,14 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
+from django.http import HttpResponse
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/extract-skills/', include('app.urls')),  # include app's urls
+    # keep legacy path for extract-skills (existing code expects this)
+    path('api/extract-skills/', include('app.urls')),
+    # preferred API prefix for frontend integration
+    path('api/v1/', include('app.urls')),
+    # simple root to confirm server is up
+    path('', lambda request: HttpResponse('CareerCompass API is running')),
 ]

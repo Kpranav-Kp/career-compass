@@ -5,9 +5,8 @@ from .views import (
     LoginView, 
     ForgotPasswordView, 
     ResetPasswordView,
-    SkillRoadmapView,
-    SkillMarketAnalysisView
 )
+from .views_skill import SkillRoadmapView, SkillMarketAnalysisView
 
 urlpatterns = [
     path('', ResumeSkillExtractionView.as_view(), name='extract_skills'),

@@ -1,16 +1,23 @@
-# React + Vite
+# React-Signin
+ 
+## A simple `React-Signin`, using `reactjs + vite`, and `tailwind`.
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+### You can  easily `download` this repo by going to the `code button`, after pressing it click on `Download zip`.
 
-Currently, two official plugins are available:
+### After `Downloading` it, open in `VS-code` and write the following command in terminal
+```bash
+npm i
+```
+Now run it by typing
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+```bash
+npm run dev
+```
+Run this Project copy it, and paste it into the browser url
+```bash
+localhost:5173
+```
 
-## React Compiler
+### Here is some representation of my `React-Signin characters` project.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+![Project `React-Signin` Screenshot](src/assets/Screenshot.png)

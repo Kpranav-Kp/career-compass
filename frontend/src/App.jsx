@@ -1,70 +1,45 @@
-import { BrowserRouter, Routes, Route, Link, useNavigate, useLocation } from "react-router-dom";
-import { useState, useEffect } from "react";
-import Register from "./pages/Register";
-import Login from "./pages/Login";
-import ForgotPassword from "./pages/ForgotPassword";
-import ResetPassword from "./pages/ResetPassword";
-import ResumeUpload from "./pages/ResumeUpload";
-import Landing from "./pages/Landing";
-import BackgroundWrapper from "./components/BackgroundWrapper";
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import Lander from './Componants/Lander';
+import Login from './Componants/Login';
+import Signup from './Componants/Signup';
+import Main from './Componants/Main';
+import About from './Componants/About';
 
-function Nav() {
-  const [token, setToken] = useState(null);
-  const navigate = useNavigate();
-  const location = useLocation();
-  const isLandingPage = location.pathname === '/';
-
-  useEffect(() => {
-    setToken(localStorage.getItem("access"));
-  }, []);
-
-  const logout = () => {
-    localStorage.removeItem("access");
-    localStorage.removeItem("refresh");
-    setToken(null);
-    navigate("/");
-  };
-
-  if (isLandingPage && !token) return null;
+const App = () => {
+  // lightweight auth check using token in localStorage
+  const isAuthenticated = !!localStorage.getItem('token');
 
   return (
-    <nav className="sticky top-0 p-4 bg-white/90 backdrop-blur-sm shadow-md flex items-center justify-between z-50">
-      <div className="space-x-4">
-        <Link className="font-semibold text-xl text-blue-600" to="/">Career Compass</Link>
+    <Router>
+      <div className='min-h-screen w-full font-poppins bg-gradient-to-br from-black to-gray-900'>
+        <Routes>
+          <Route path="/" element={<Lander />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Signup />} />
+          <Route path="/about" element={<About />} />
+          
+          {/* Protected Routes */}
+          <Route 
+            path="/main" 
+            element={isAuthenticated ? <Main /> : <Navigate to="/login" />} 
+          />
+          <Route 
+            path="/skills" 
+            element={isAuthenticated ? <Main /> : <Navigate to="/login" />} 
+          />
+          <Route 
+            path="/path" 
+            element={isAuthenticated ? <div>Path Page Coming Soon</div> : <Navigate to="/login" />} 
+          />
+          <Route 
+            path="/jobs" 
+            element={isAuthenticated ? <div>Jobs Page Coming Soon</div> : <Navigate to="/login" />} 
+          />
+        </Routes>
       </div>
-      <div className="space-x-4">
-        {!token ? (
-          <>
-            <Link className="px-4 py-2 rounded-full hover:bg-gray-100" to="/register">Register</Link>
-            <Link className="px-4 py-2 bg-blue-600 text-white rounded-full hover:bg-blue-700" to="/login">Login</Link>
-          </>
-        ) : (
-          <>
-            <Link className="px-4 py-2 rounded-full hover:bg-gray-100" to="/dashboard">Dashboard</Link>
-            <button onClick={logout} className="px-4 py-2 text-red-600 rounded-full hover:bg-red-50">Logout</button>
-          </>
-        )}
-      </div>
-    </nav>
-  );
+    </Router>
+  )
 }
 
-export default function App() {
-  return (
-    <BrowserRouter>
-      <BackgroundWrapper>
-        <Nav />
-        <div className="p-6">
-          <Routes>
-            <Route path="/register" element={<Register />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/forgot" element={<ForgotPassword />} />
-            <Route path="/reset" element={<ResetPassword />} />
-            <Route path="/dashboard" element={<ResumeUpload />} />
-            <Route path="/" element={<Landing />} />
-          </Routes>
-        </div>
-      </BackgroundWrapper>
-    </BrowserRouter>
-  );
-}
+export default App
