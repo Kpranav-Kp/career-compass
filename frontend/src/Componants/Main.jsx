@@ -13,8 +13,12 @@ const Main = () => {
     setIsLoading(true);
     try {
       const data = await skillsService.extractSkills(file, role);
+      console.log('extractSkills response:', data);
       if (data && data.extracted_skills) {
         setSkills(data.extracted_skills);
+      } else if (data && data.recommended_skills) {
+        // If API returns only recommended_skills, show that too
+        setSkills(data.recommended_skills);
       } else if (data && data.data && data.data.extracted_skills) {
         // fallback if API nested differently
         setSkills(data.data.extracted_skills);

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { authService } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 const Signup = () => {
     const [username, setUsername] = useState('');
@@ -10,6 +10,7 @@ const Signup = () => {
     const [error, setError] = useState(null);
 
     const navigate = useNavigate();
+    const { register, login } = useAuth();
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError(null);
@@ -20,12 +21,17 @@ const Signup = () => {
         }
 
         try {
-            const data = await authService.register(username, email, password);
+            const data = await register(username, email, password);
             if (!data.success) {
                 throw new Error(data.message || 'Registration failed');
             }
-            alert('Signup successful! Please login to continue.');
-            navigate('/login');
+            // auto-login after successful registration and redirect to main
+            try {
+                await login(email, password);
+            } catch (err) {
+                // ignore login error
+            }
+            navigate('/main');
         } catch (err) {
             setError(err.message);
         }
@@ -42,7 +48,7 @@ const Signup = () => {
                 </div>
                 <form className='flex flex-col gap-3' onSubmit={handleSubmit}>
                     <div className='flex gap-3 flex-col'>
-                        <label className='font-medium text-gray-900' htmlFor='username'>Username</label>
+                        <label className='font-medium text-gray-900' htmlFor='username'>Name</label>
                         <input
                             className='p-3 rounded-xl border border-[#4285F4] bg-white text-gray-900 placeholder-gray-400'
                             type='text'

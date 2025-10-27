@@ -1,5 +1,14 @@
 const API_URL = 'http://localhost:8000/api/v1';
 
+// Helper to return Authorization headers only when token appears valid.
+function getAuthHeaders() {
+    const token = localStorage.getItem('token');
+    if (!token) return {};
+    // guard against stringified null/undefined or very short tokens
+    if (token === 'null' || token === 'undefined' || token.trim().length < 10) return {};
+    return { 'Authorization': `Bearer ${token}` };
+}
+
 // Auth services
 export const authService = {
     login: async (email, password) => {
@@ -26,7 +35,8 @@ export const authService = {
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ username, email, password })
+            // backend expects 'name' field, map username -> name
+            body: JSON.stringify({ name: username, email, password })
         });
         return await response.json();
     },
@@ -66,12 +76,8 @@ export const skillsService = {
         const formData = new FormData();
         formData.append('file', file);
         formData.append('role', role);
-
-        const response = await fetch(`${API_URL}/`, {
+        const response = await fetch(`${API_URL}/extract-skills`, {
             method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${localStorage.getItem('token')}`,
-            },
             body: formData
         });
         return await response.json();
@@ -80,10 +86,7 @@ export const skillsService = {
     getSkillRoadmap: async (skills) => {
         const response = await fetch(`${API_URL}/skill-roadmap`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('token')}`,
-            },
+            headers: Object.assign({ 'Content-Type': 'application/json' }, getAuthHeaders()),
             body: JSON.stringify({ skills })
         });
         return await response.json();
@@ -92,10 +95,7 @@ export const skillsService = {
     getMarketAnalysis: async (skills) => {
         const response = await fetch(`${API_URL}/skill-market-analysis`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('token')}`,
-            },
+            headers: Object.assign({ 'Content-Type': 'application/json' }, getAuthHeaders()),
             body: JSON.stringify({ skills })
         });
         return await response.json();

@@ -5,10 +5,12 @@ import Login from './Componants/Login';
 import Signup from './Componants/Signup';
 import Main from './Componants/Main';
 import About from './Componants/About';
+import { useAuth } from './context/AuthContext';
 
 const App = () => {
-  // lightweight auth check using token in localStorage
-  const isAuthenticated = !!localStorage.getItem('token');
+  // reactive auth check using AuthContext
+  const { user } = useAuth();
+  const isAuthenticated = !!user;
 
   return (
     <Router>

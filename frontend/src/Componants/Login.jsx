@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { authService } from '../services/api';
+import Nav from './Nav';
+import { useAuth } from '../context/AuthContext';
 
 const Login = () => {
     const [email, setEmail] = useState('');
@@ -9,16 +10,14 @@ const Login = () => {
 
     const navigate = useNavigate();
     const [isLoading, setIsLoading] = useState(false);
+    const { login } = useAuth();
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError(null);
         setIsLoading(true);
 
         try {
-            const data = await authService.login(email, password);
-            if (!data.success) {
-                throw new Error(data.message || 'Invalid credentials');
-            }
+            await login(email, password);
             navigate('/main');
         } catch (err) {
             setError(err.message);
@@ -28,8 +27,9 @@ const Login = () => {
     };
 
     return (
-        <div className='w-full min-h-screen bg-black flex items-center justify-center p-4'>
-            <div className='w-full max-w-md p-9 flex flex-col gap-7 box-border rounded-3xl border border-[#0089ED] bg-white text-gray-900'>
+        <div className='w-full min-h-screen bg-black flex items-start justify-center p-4 pt-24'>
+            <Nav type="landing" />
+            <div className='w-full max-w-md p-9 flex flex-col gap-7 box-border rounded-3xl border border-[#0089ED] bg-white text-gray-900 z-40'>
                 <div className='flex items-start justify-between p-2'>
                     <div className='flex flex-col gap-5'>
                         <h1 className='text-xl font-normal'>Welcome to <Link to="/" className='text-[#0089ED] font-bold hover:underline'>CareerCompass</Link></h1>
