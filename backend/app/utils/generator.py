@@ -32,8 +32,8 @@ def call_mistral_chat(prompt: str, max_tokens: int = 256, temperature: float = 0
 def extract_skills_prompt(resume_text: str) -> str:
     return (
         "You are an expert recruiter. Extract only the candidate's relevant skills "
-        "from the following resume text. Return a comma-separated list of skill names, "
-        "no explanations, no extra words.\n\n"
+        "from the following resume text. Return ONLY a JSON array of skill names (no text, no explanation)."
+        " Example: [\"Python\", \"SQL\"]\n\n"
         "Resume:\n"
         f"{resume_text}\n\nSkills:"
     )
@@ -41,9 +41,9 @@ def extract_skills_prompt(resume_text: str) -> str:
 def recommend_skills_prompt(existing_skills: str, role: str) -> str:
     return (
         "You are an expert career coach. Given these existing skills and the target job role, "
-        "suggest up to 5 additional technical or professional skills (comma-separated) that would "
-        "make the candidate a stronger match for the role. Avoid explanations — return only a "
-        "comma-separated list.\n\n"
+        "suggest up to 5 additional technical or professional skills that would make the candidate a stronger match for the role."
+        " Return ONLY a JSON array of skill names (no explanations). If you must pick a single top recommendation, return an array with a single item."
+        " Example: [\"System Design\"]\n\n"
         f"Existing skills: {existing_skills}\n"
         f"Target role: {role}\n\nRecommendations:"
     )

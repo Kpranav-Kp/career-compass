@@ -16,6 +16,8 @@ import uuid
 from django.utils import timezone
 from .utils.skill_extractor import extract_text_from_pdf_file
 from .utils.generator import call_mistral_chat, extract_skills_prompt, recommend_skills_prompt
+import traceback
+import json
 
 SALT = "8b4f6b2cc1868d75ef79e5cfb8779c11b6a374bf0fce05b485581bf4e1e25b96c8c2855015de8449"
 URL = "http://localhost:3000"
@@ -57,51 +59,36 @@ class ResumeSkillExtractionView(APIView):
 
             # 2) call mistral to extract skills
             prompt_extract = extract_skills_prompt(resume_text)
-            extracted_text = call_mistral_chat(prompt_extract, max_tokens=250, temperature=0.0)
-            # normalize output to list
-            extracted_skills = [s.strip() for s in extracted_text.split(",") if s.strip()]
+            extracted_text = call_mistral_chat(prompt_extract, max_tokens=400, temperature=0.0)
+            # Try to parse JSON array from model output first; if that fails, fall back to comma-splitting
+            extracted_skills = []
+            try:
+                parsed = json.loads(extracted_text)
+                if isinstance(parsed, list):
+                    extracted_skills = [s.strip() for s in parsed if isinstance(s, str) and s.strip()]
+            except Exception:
+                extracted_skills = [s.strip() for s in extracted_text.split(",") if s.strip()]
 
-            # Fallback: if model returned nothing, do a simple keyword-based extraction
-            if not extracted_skills:
-                # small curated set of common skills (can be extended)
-                SKILL_KEYWORDS = [
-                    "python",
-                    "sql",
-                    "machine learning",
-                    "data visualization",
-                    "statistical analysis",
-                    "pandas",
-                    "numpy",
-                    "tensorflow",
-                    "pytorch",
-                    "scikit-learn",
-                    "r",
-                    "excel",
-                    "aws",
-                    "docker",
-                    "kubernetes",
-                    "java",
-                    "c++",
-                    "javascript",
-                    "react",
-                    "node",
-                    "git",
-                ]
-                text_lower = resume_text.lower()
-                found = []
-                for kw in SKILL_KEYWORDS:
-                    if kw in text_lower and kw not in found:
-                        # normalize keywords (title-case for display)
-                        found.append(kw)
-                # normalize display format: capitalize words appropriately
-                extracted_skills = [s.title() for s in found]
+            # NOTE: Do NOT fall back to a local keyword list here.
+            # If the model couldn't extract skills, keep extracted_skills empty and
+            # rely on the recommender (below) when a role is provided.
 
             # 3) call mistral to recommend additional skills (if role provided)
             recommended_skills = []
             if role:
-                prompt_rec = recommend_skills_prompt(", ".join(extracted_skills), role)
+                prompt_rec = recommend_skills_prompt(
+                    ", ".join(extracted_skills), role)
                 rec_text = call_mistral_chat(prompt_rec, max_tokens=200, temperature=0.2)
-                recommended_skills = [s.strip() for s in rec_text.split(",") if s.strip()]
+                # parse JSON array expected from the prompt; fallback to comma-split
+                try:
+                    parsed_rec = json.loads(rec_text)
+                    if isinstance(parsed_rec, list):
+                        recommended_skills = [s.strip() for s in parsed_rec if isinstance(s, str) and s.strip()]
+                except Exception:
+                    recommended_skills = [s.strip() for s in rec_text.split(",") if s.strip()]
+                # Return only the single most relevant recommendation for the role
+                if recommended_skills:
+                    recommended_skills = [recommended_skills[0]]
 
             # 4) save to DB
             # reset file pointer before saving
@@ -130,7 +117,8 @@ class ResumeSkillExtractionView(APIView):
 
         except Exception as e:
             # In dev show error; in prod log error and hide details.
-            return Response({"status": "error", "message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            tb = traceback.format_exc()
+            return Response({"status": "error", "message": str(e), "traceback": tb}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class ResetPasswordView(APIView):

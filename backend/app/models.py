@@ -24,8 +24,7 @@ class User(models.Model):
     name = models.CharField(max_length=255)
     email = models.EmailField(unique=True)
     password = models.CharField(max_length=255)
-    phone = models.CharField(max_length=10, null=True)
-    country = models.CharField(max_length=63, blank=True, null=True)
+    # Keep only the essential fields required for registration/login.
 
     def __str__(self) -> str:
         return self.name

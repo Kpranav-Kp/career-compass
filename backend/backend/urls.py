@@ -22,10 +22,7 @@ from django.http import HttpResponse
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    # keep legacy path for extract-skills (existing code expects this)
     path('api/extract-skills/', include('app.urls')),
-    # preferred API prefix for frontend integration
     path('api/v1/', include('app.urls')),
-    # simple root to confirm server is up
     path('', lambda request: HttpResponse('CareerCompass API is running')),
 ]

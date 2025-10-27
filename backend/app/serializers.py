@@ -9,8 +9,8 @@ class ResumeSerializer(serializers.ModelSerializer):
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        # country is optional at model level; frontend doesn't send it now
-        fields = ["name", "email", "password", "phone"]
+        # Only expose the fields required for registration/login
+        fields = ["name", "email", "password"]
 
 
 class TokenSerializer(serializers.ModelSerializer):
