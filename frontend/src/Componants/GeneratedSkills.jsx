@@ -54,10 +54,7 @@ const GeneratedSkills = ({ onScrollIntoView }) => {
         </div>
       </div>
 
-      <div className='mt-4 flex gap-3'>
-        <button onClick={() => navigate('/path')} className='py-2 px-4 bg-[#4285F4] rounded text-white'>View Learning Path</button>
-        <button onClick={() => navigate('/jobs')} className='py-2 px-4 bg-[#FF9800] rounded text-white'>View Job Insights</button>
-      </div>
+      {/* Navigation via top nav; removed duplicate buttons from main page to reduce clutter */}
     </div>
   );
 };
