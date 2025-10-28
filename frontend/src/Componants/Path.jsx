@@ -4,27 +4,19 @@ import { useGeneratedSkills } from '../context/GeneratedSkillsContext';
 import { skillsService } from '../services/api';
 
 const Path = () => {
-  const { generatedSkills } = useGeneratedSkills();
+  const { generatedSkills, extractedSkills } = useGeneratedSkills();
   const [roadmap, setRoadmap] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [selectedSkill, setSelectedSkill] = useState('');
+  const [singleRoadmap, setSingleRoadmap] = useState(null);
+  const [singleLoading, setSingleLoading] = useState(false);
 
-  useEffect(() => {
-    const fetch = async () => {
-      if (!generatedSkills || generatedSkills.length === 0) return;
-      setLoading(true);
-      try {
-        const res = await skillsService.getRoadmapForSkills(generatedSkills.map(s => String(s).toLowerCase()));
-        setRoadmap(res);
-      } catch (e) {
-        console.error('Failed to load roadmap', e);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetch();
-  }, [generatedSkills]);
+  // Batch roadmap fetch is heavy; we don't auto-run it. Leave roadmap null and fetch on demand (per-skill below).
 
-  if (!generatedSkills || generatedSkills.length === 0) {
+  // combined skills: prefer generated (recommended) then extracted
+  const combinedSkills = Array.from(new Set([...(generatedSkills || []), ...(extractedSkills || [])]));
+
+  if (!combinedSkills || combinedSkills.length === 0) {
     return (
       <div className='min-h-[calc(100vh-80px)] p-8 pt-20'>
         <Nav type="main" />
@@ -32,82 +24,89 @@ const Path = () => {
       </div>
     );
   }
+  const generateForSkill = async (skill) => {
+    if (!skill) return;
+    setSingleLoading(true);
+    try {
+      const res = await skillsService.getSkillRoadmap(skill.toLowerCase());
+      setSingleRoadmap(res || null);
+    } catch (e) {
+      console.error('Failed to generate roadmap for skill', e);
+      setSingleRoadmap(null);
+    } finally {
+      setSingleLoading(false);
+    }
+  };
+
+  const exportAsTxt = (skillName, roadmapObj) => {
+    const lines = [];
+    lines.push(`Roadmap for: ${skillName}\n`);
+    try {
+      if (roadmapObj.prerequisites) {
+        lines.push('Prerequisites:');
+        lines.push(Array.isArray(roadmapObj.prerequisites) ? roadmapObj.prerequisites.join(', ') : String(roadmapObj.prerequisites));
+        lines.push('\n');
+      }
+      if (roadmapObj.learning_path || roadmapObj.levels) {
+        lines.push('Learning Path:');
+        const stages = roadmapObj.learning_path || roadmapObj.levels || [];
+        stages.forEach((s, i) => {
+          const title = s.title || s.level || `Stage ${i+1}`;
+          lines.push(`${i+1}. ${title}`);
+          if (s.description) lines.push(`   ${s.description}`);
+          if (s.timeframe) lines.push(`   Estimated time: ${s.timeframe}`);
+          if (s.projects && s.projects.length) lines.push(`   Projects: ${s.projects.join('; ')}`);
+        });
+        lines.push('\n');
+      }
+      if (roadmapObj.estimated_timeline) {
+        lines.push(`Estimated timeline: ${roadmapObj.estimated_timeline}`);
+      }
+    } catch (e) {
+      lines.push(JSON.stringify(roadmapObj, null, 2));
+    }
+
+    const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${skillName.replace(/\s+/g, '_')}_roadmap.txt`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div className='min-h-[calc(100vh-80px)] p-8 pt-20'>
       <Nav type="main" />
       <div className='p-8'>
         <h2 className='text-white text-2xl mb-4'>Learning Path</h2>
-      {loading && <p className='text-white'>Loading...</p>}
-      {!loading && roadmap && (
-        <div className='space-y-6'>
-          {(() => {
-            const block = roadmap.roadmap || roadmap;
-            if (!block || Object.keys(block).length === 0) {
-              return <p className='text-white/70'>No roadmap details available for the generated skills.</p>;
-            }
-
-            return generatedSkills.map((skill, idx) => {
-              const key = String(skill).toLowerCase();
-              const data = block[key] || block[skill] || {};
-              const levels = Array.isArray(data.levels) ? data.levels : (data.learning_path || []);
-              const prerequisites = Array.isArray(data.prerequisites) ? data.prerequisites : (data.prereq || []);
-              const estimate = data.estimated_timeline || data.time || data.estimate || '';
-              const difficulty = data.difficulty_level || data.difficulty || '';
-
-              return (
-                <div key={idx} className='bg-black/20 border border-[#0089ED]/10 rounded-lg p-4'>
-                  <div className='flex items-center justify-between'>
-                    <h3 className='text-white text-lg mb-2'>{skill}</h3>
-                    <div className='text-sm text-white/70'>{difficulty || estimate || ''}</div>
-                  </div>
-
-                  {prerequisites && prerequisites.length > 0 ? (
-                    <div className='mb-2'>
-                      <strong className='text-white/80'>Prerequisites:</strong>
-                      <div className='text-sm text-white/70'>
-                        {prerequisites.join(', ')}
-                      </div>
-                    </div>
-                  ) : (
-                    <div className='mb-2 text-sm text-white/70'>No explicit prerequisites provided.</div>
-                  )}
-
-                  {levels && levels.length > 0 ? (
-                    <div className='grid gap-3'>
-                      {levels.map((lvl, i) => (
-                        <div key={i} className='bg-black/10 p-3 rounded'>
-                          <div className='text-sm text-white/90'><strong>{lvl.level || lvl.title || `Stage ${i+1}`}</strong></div>
-                          {lvl.description && <div className='text-sm text-white/70 mt-1'>{lvl.description}</div>}
-                          {lvl.resources && lvl.resources.length > 0 && (
-                            <div className='text-sm text-white/70 mt-2'>
-                              <strong>Resources:</strong>
-                              <ul className='list-disc list-inside'>
-                                {lvl.resources.map((r, j) => <li key={j}>{r}</li>)}
-                              </ul>
-                            </div>
-                          )}
-                          {lvl.projects && lvl.projects.length > 0 && (
-                            <div className='text-sm text-white/70 mt-2'>
-                              <strong>Projects:</strong>
-                              <ul className='list-disc list-inside'>
-                                {lvl.projects.map((p, j) => <li key={j}>{p}</li>)}
-                              </ul>
-                            </div>
-                          )}
-                          {lvl.timeframe && <div className='text-sm text-white/70 mt-2'>Estimated time: {lvl.timeframe}</div>}
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className='text-sm text-white/70'>No staged learning path provided.</div>
-                  )}
-                </div>
-              );
-            });
-          })()}
+        <div className='mb-6'>
+          <label className='text-white mb-2 block'>Pick a skill to generate roadmap for</label>
+          <div className='flex gap-3'>
+            <select value={selectedSkill} onChange={e => setSelectedSkill(e.target.value)} className='p-3 rounded bg-black/50 text-white border border-[#4285F4]'>
+              <option value=''>-- select a skill --</option>
+              {combinedSkills.map((s, i) => <option key={i} value={s}>{s}</option>)}
+            </select>
+            <button onClick={() => generateForSkill(selectedSkill)} disabled={!selectedSkill || singleLoading} className='py-2 px-4 bg-[#0089ED] rounded text-white'>
+              {singleLoading ? 'Generating...' : 'Generate Roadmap'}
+            </button>
+            {singleRoadmap && !singleLoading && (
+              <button onClick={() => exportAsTxt(selectedSkill, singleRoadmap)} className='py-2 px-4 bg-[#00C853] rounded text-white'>Export as .txt</button>
+            )}
+          </div>
         </div>
-      )}
+
+        {singleLoading && <p className='text-white'>Generating roadmap for {selectedSkill}...</p>}
+        {singleRoadmap && (
+          <div className='space-y-6'>
+            <div className='bg-black/20 border border-[#0089ED]/10 rounded-lg p-4'>
+              <h3 className='text-white text-lg mb-2'>{selectedSkill}</h3>
+              <pre className='text-sm text-white/80 whitespace-pre-wrap'>{JSON.stringify(singleRoadmap, null, 2)}</pre>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

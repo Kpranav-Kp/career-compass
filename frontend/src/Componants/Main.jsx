@@ -169,15 +169,7 @@ const Main = () => {
               </div>
             ) : (
               <>
-                  <div className='flex items-center gap-4 mb-4'>
-                    <button
-                      className='py-2 px-4 bg-[#00C853] rounded-lg text-white'
-                      onClick={handleRecommend}
-                      disabled={isRecLoading}
-                    >
-                      {isRecLoading ? 'Recommending...' : 'Recommend Skills'}
-                    </button>
-                  </div>
+                  {/* Recommend button removed from extract card per UX: use GeneratedSkills area/navigation to request recommendations or run on server */}
                   <div className='mb-4'>
                     <p className='text-white/80'>Extracted {extractedSkills ? extractedSkills.length : 0} skills.</p>
                     {(extractedSkills || []).slice(0,3).length > 0 && (
