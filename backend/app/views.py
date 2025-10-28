@@ -112,7 +112,10 @@ class SkillRecommendView(APIView):
             return Response({"error": "skills must be a list"}, status=status.HTTP_400_BAD_REQUEST)
         try:
             recs = generate_recommended_skills(skills, role)
-            return Response({"recommended_skills": recs}, status=status.HTTP_200_OK)
+            # filter out any recommendations that are already in the provided skills (case-insensitive)
+            existing = {s.strip().lower() for s in skills if s and isinstance(s, str)}
+            filtered = [r for r in recs if isinstance(r, str) and r.strip().lower() not in existing]
+            return Response({"recommended_skills": filtered}, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({"error": f"Failed to generate recommendations: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
@@ -189,6 +192,21 @@ class ResumeSkillExtractionView(APIView):
                 if recommended_skills:
                     recommended_skills = recommended_skills[:8]
 
+            # Filter out any recommended skills that are already present in the extracted_skills
+            # (case-insensitive). The user requested we do NOT run market analysis for existing skills.
+            if recommended_skills and extracted_skills:
+                existing_lower = {s.strip().lower() for s in extracted_skills if s and s.strip()}
+                filtered = []
+                for s in recommended_skills:
+                    if not s or not isinstance(s, str):
+                        continue
+                    if s.strip().lower() in existing_lower:
+                        # skip skills already present
+                        continue
+                    if s.strip() not in filtered:
+                        filtered.append(s.strip())
+                recommended_skills = filtered
+
             # 4) save to DB
             # 4a) get aggregated important skills from Lightcast (optional)
             important_skills = []
@@ -230,76 +248,13 @@ class ResumeSkillExtractionView(APIView):
                 else:
                     extraction_issue = "no_skills_found"
 
-            # 6) Generate insights — use the extracted skills as the authoritative source
-            # per request (if there are no extracted skills we still return helpful message).
-            # Use lower-case normalized skills to match generator expectations
-            skills_to_generate = [s.strip().lower() for s in extracted_skills][:5] if extracted_skills else []
-
-            roadmap_json = {}
-            market_json = {}
-            try:
-                if skills_to_generate:
-                    # Prefer OpenRouter-based generators for roadmap and market analysis
-                    roadmap_json = generate_roadmap_for_skills_openrouter(skills_to_generate) or {}
-                    market_json = analyze_market_for_skills_openrouter(skills_to_generate) or {}
-            except Exception as e:
-                logger.exception(f"OpenRouter generation error: {e}")
-
-            skill_insights = []
-            for skill in skills_to_generate:
-                try:
-                    sanitized_skill = skill.strip()[:100]
-
-                    # Try to extract per-skill roadmap and projects from roadmap_json
-                    roadmap_for_skill = {}
-                    try:
-                        roadmap_block = roadmap_json.get("roadmap", {})
-                        # Keys may be exact skill names or normalized; try both
-                        roadmap_for_skill = roadmap_block.get(sanitized_skill) or {}
-                    except Exception:
-                        roadmap_for_skill = {}
-
-                    # Try to extract market data
-                    market_for_skill = {}
-                    try:
-                        skills_block = market_json.get("skills", {})
-                        market_for_skill = skills_block.get(sanitized_skill) or {}
-                    except Exception:
-                        market_for_skill = {}
-
-                    # Derive project ideas: prefer explicit projects in roadmap, else empty list
-                    project_ideas = []
-                    try:
-                        if isinstance(roadmap_for_skill, dict):
-                            # roadmap_for_skill may include a 'projects' key or nested 'levels' entries
-                            project_ideas = roadmap_for_skill.get("projects") or []
-                            if not project_ideas:
-                                # search levels for 'projects'
-                                levels = roadmap_for_skill.get("levels") or []
-                                for lvl in levels:
-                                    if isinstance(lvl, dict) and lvl.get("projects"):
-                                        project_ideas.extend(lvl.get("projects"))
-                    except Exception:
-                        project_ideas = []
-
-                    skill_insights.append({
-                        "skill": sanitized_skill,
-                        "relevance_score": None,
-                        "roadmap": roadmap_for_skill,
-                        "market_analysis": market_for_skill,
-                        "project_ideas": project_ideas
-                    })
-                except Exception as e:
-                    logger.error(f"Failed to build insights for skill {skill}: {str(e)}")
-                    continue
-
-            # 7) return JSON with insights for top skills
+            # 6) Do NOT generate roadmaps or market insights here — these are expensive
+            # operations and should be triggered on-demand (e.g., when user visits /path or /jobs).
             return Response({
                 "status": "success",
                 "data": serializer.data,
                 "extracted_skills": extracted_skills,
                 "recommended_skills": recommended_skills,
-                "skill_insights": skill_insights,
                 "important_skills": important_skills,
                 "extraction_issue": extraction_issue
             }, status=status.HTTP_201_CREATED)

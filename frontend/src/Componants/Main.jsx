@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
 import Nav from './Nav';
 import { skillsService } from '../services/api';
+import GeneratedSkills from './GeneratedSkills';
+import { useGeneratedSkills } from '../context/GeneratedSkillsContext';
 
 const Main = () => {
   const [role, setRole] = useState('');
   const [file, setFile] = useState(null);
   const [skills, setSkills] = useState([]);
   const [recommendedSkills, setRecommendedSkills] = useState([]);
-  const [details, setDetails] = useState({}); // { skill: {roadmap, projects, market} }
+  const { generatedSkills, setGeneratedSkills, clearGeneratedSkills, extractedSkills, setExtractedSkills, clearExtractedSkills } = useGeneratedSkills();
   const [isLoading, setIsLoading] = useState(false);
   const [isRecLoading, setIsRecLoading] = useState(false);
   const [extractionIssue, setExtractionIssue] = useState(null);
@@ -23,12 +25,27 @@ const Main = () => {
         setExtractionIssue(data && data.extraction_issue ? data.extraction_issue : null);
       if (data && data.extracted_skills) {
         setSkills(data.extracted_skills);
+          // persist extracted skills in context
+          setExtractedSkills(data.extracted_skills);
+          // if backend returned recommended skills, store them as generated skills
+          if (data.recommended_skills && data.recommended_skills.length) {
+            setRecommendedSkills(data.recommended_skills);
+            setGeneratedSkills(data.recommended_skills);
+          } else {
+            // clear previous generated skills on new upload if none returned
+            clearGeneratedSkills();
+        }
       } else if (data && data.recommended_skills) {
         // If API returns only recommended_skills, show that too
-        setSkills(data.recommended_skills);
+          // In case API returns only recommended_skills
+          setSkills([]);
+          setRecommendedSkills(data.recommended_skills);
+          setGeneratedSkills(data.recommended_skills);
+          // leave extractedSkills alone (don't overwrite) unless API provided them
       } else if (data && data.data && data.data.extracted_skills) {
         // fallback if API nested differently
         setSkills(data.data.extracted_skills);
+          setExtractedSkills(data.data.extracted_skills);
       } else {
         setSkills([]);
       }
@@ -47,8 +64,10 @@ const Main = () => {
       const res = await skillsService.recommendSkills(skills, role);
       if (res && res.recommended_skills) {
         setRecommendedSkills(res.recommended_skills);
+        setGeneratedSkills(res.recommended_skills);
       } else {
         setRecommendedSkills([]);
+        clearGeneratedSkills();
       }
     } catch (e) {
       console.error('Recommend skills failed', e);
@@ -58,23 +77,14 @@ const Main = () => {
     }
   };
 
-  const fetchDetails = async (skill) => {
-    // avoid refetch
-    if (details[skill]) return;
-    try {
-      const roadmap = await skillsService.getSkillRoadmap(skill);
-      const projects = await skillsService.getSkillProjects ? await skillsService.getSkillProjects(skill) : null;
-      const market = await skillsService.getMarketAnalysis(skill);
-      setDetails(prev => ({ ...prev, [skill]: { roadmap, projects, market } }));
-    } catch (e) {
-      console.error('Failed to fetch details', e);
-    }
-  };
+  // Details per-skill removed per UX request
 
   const fetchAggregateRoadmap = async () => {
-    if (!skills || skills.length === 0) return;
+    // Prefer generated skills (recommendations). If none, do nothing per requirements.
+  const source = (generatedSkills && generatedSkills.length) ? generatedSkills : [];
+    if (!source || source.length === 0) return;
     try {
-      const normalized = skills.map(s => String(s).toLowerCase());
+      const normalized = source.map(s => String(s).toLowerCase());
       const res = await skillsService.getRoadmapForSkills(normalized);
       setRoadmapAggregate(res);
     } catch (e) {
@@ -84,9 +94,10 @@ const Main = () => {
   };
 
   const fetchAggregateMarket = async () => {
-    if (!skills || skills.length === 0) return;
+  const source = (generatedSkills && generatedSkills.length) ? generatedSkills : [];
+    if (!source || source.length === 0) return;
     try {
-      const normalized = skills.map(s => String(s).toLowerCase());
+      const normalized = source.map(s => String(s).toLowerCase());
       const res = await skillsService.getMarketForSkills(normalized);
       setMarketAggregate(res);
     } catch (e) {
@@ -98,7 +109,7 @@ const Main = () => {
   return (
     <div className='min-h-screen bg-gradient-to-br from-black to-gray-900'>
       <Nav type="main" />
-      <div className='w-full min-h-[calc(100vh-80px)] p-8'>
+      <div className='w-full min-h-[calc(100vh-80px)] p-8 pt-20 flex items-center justify-center'>
         <div className='max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-8'>
           {/* Input Card */}
           <div className='bg-black/40 backdrop-blur-sm border border-[#0089ED] rounded-3xl p-8'>
@@ -138,7 +149,7 @@ const Main = () => {
           {/* Skills Card */}
           <div className='bg-black/40 backdrop-blur-sm border border-[#0089ED] rounded-3xl p-8'>
             <h2 className='text-2xl font-semibold text-white mb-6'>Your Skills</h2>
-            {skills.length === 0 ? (
+            {(!extractedSkills || extractedSkills.length === 0) ? (
               <div className='text-center text-white/60 py-12'>
                 {extractionIssue === 'bad_read' && (
                   <p>We couldn't read your resume. Try uploading a different PDF or ensure the file isn't a scanned image.</p>
@@ -158,63 +169,33 @@ const Main = () => {
               </div>
             ) : (
               <>
-                <div className='flex items-center gap-4 mb-4'>
-                  <button
-                    className='py-2 px-4 bg-[#00C853] rounded-lg text-white'
-                    onClick={handleRecommend}
-                    disabled={isRecLoading}
-                  >
-                    {isRecLoading ? 'Recommending...' : 'Recommend Skills'}
-                  </button>
-                  <button
-                    className='py-2 px-4 bg-[#4285F4] rounded-lg text-white'
-                    onClick={fetchAggregateRoadmap}
-                    disabled={isLoading || skills.length === 0}
-                  >
-                    View Roadmap
-                  </button>
-                  <button
-                    className='py-2 px-4 bg-[#FF9800] rounded-lg text-white'
-                    onClick={fetchAggregateMarket}
-                    disabled={isLoading || skills.length === 0}
-                  >
-                    View Market Insights
-                  </button>
-                </div>
-                <div className='grid grid-cols-2 gap-4'>
-                  {skills.map((skill, index) => (
-                    <div
-                      key={index}
-                      className='bg-black/30 border border-[#0089ED]/20 rounded-xl p-4'
+                  <div className='flex items-center gap-4 mb-4'>
+                    <button
+                      className='py-2 px-4 bg-[#00C853] rounded-lg text-white'
+                      onClick={handleRecommend}
+                      disabled={isRecLoading}
                     >
-                      <div className='flex justify-between items-start'>
-                        <p className='text-white font-medium'>{skill}</p>
-                        <div className='flex gap-2'>
-                          <button className='text-sm px-2 py-1 bg-[#4285F4] rounded' onClick={() => fetchDetails(skill)}>Details</button>
-                        </div>
+                      {isRecLoading ? 'Recommending...' : 'Recommend Skills'}
+                    </button>
+                  </div>
+                  <div className='mb-4'>
+                    <p className='text-white/80'>Extracted {extractedSkills ? extractedSkills.length : 0} skills.</p>
+                    {(extractedSkills || []).slice(0,3).length > 0 && (
+                      <div className='mt-3 flex flex-wrap gap-3'>
+                        {(extractedSkills || []).slice(0,3).map((s, i) => (
+                          <div key={i} className='bg-black/30 border border-[#0089ED]/20 rounded-full px-3 py-2 text-white text-sm'>{s}</div>
+                        ))}
+                        {(extractedSkills || []).length > 3 && (
+                          <div className='text-white/60 self-center'>+{(extractedSkills || []).length - 3} more</div>
+                        )}
                       </div>
-                      {details[skill] && (
-                        <div className='mt-3 text-sm text-white/90'>
-                          <pre className='whitespace-pre-wrap'>{JSON.stringify(details[skill], null, 2)}</pre>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </>
+                    )}
+                  </div>
+                </>
             )}
-            {recommendedSkills.length > 0 && (
-              <div className='mt-6'>
-                <h3 className='text-white mb-2'>Recommended Skills</h3>
-                <div className='grid grid-cols-2 gap-4'>
-                  {recommendedSkills.map((r, i) => (
-                    <div key={i} className='bg-black/20 border border-[#00C853]/30 rounded-xl p-3 text-white'>
-                      {r}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+              {/* recommended and extracted skills are shown in the GeneratedSkills component below to avoid duplication */}
+            {/* GeneratedSkills component shows below the cards and allows navigating to Path/Jobs */}
+            <GeneratedSkills />
             {roadmapAggregate && (
               <div className='mt-6'>
                 <h3 className='text-white mb-2'>Aggregate Roadmap</h3>

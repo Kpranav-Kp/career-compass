@@ -4,11 +4,25 @@ const GeneratedSkillsContext = createContext(null);
 
 export const GeneratedSkillsProvider = ({ children }) => {
   const [generatedSkills, setGeneratedSkills] = useState([]);
+  const [extractedSkills, setExtractedSkills] = useState([]);
 
   const clearGeneratedSkills = () => setGeneratedSkills([]);
+  const clearExtractedSkills = () => setExtractedSkills([]);
+  const clearAllSkills = () => {
+    setGeneratedSkills([]);
+    setExtractedSkills([]);
+  };
 
   return (
-    <GeneratedSkillsContext.Provider value={{ generatedSkills, setGeneratedSkills, clearGeneratedSkills }}>
+    <GeneratedSkillsContext.Provider value={{
+      generatedSkills,
+      setGeneratedSkills,
+      clearGeneratedSkills,
+      extractedSkills,
+      setExtractedSkills,
+      clearExtractedSkills,
+      clearAllSkills
+    }}>
       {children}
     </GeneratedSkillsContext.Provider>
   );

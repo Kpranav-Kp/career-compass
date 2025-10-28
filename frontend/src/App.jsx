@@ -5,7 +5,10 @@ import Login from './Componants/Login';
 import Signup from './Componants/Signup';
 import Main from './Componants/Main';
 import About from './Componants/About';
+import Path from './Componants/Path';
+import Jobs from './Componants/Jobs';
 import { useAuth } from './context/AuthContext';
+import { GeneratedSkillsProvider } from './context/GeneratedSkillsContext';
 
 const App = () => {
   // reactive auth check using AuthContext
@@ -14,6 +17,7 @@ const App = () => {
 
   return (
     <Router>
+      <GeneratedSkillsProvider>
       <div className='min-h-screen w-full font-poppins bg-gradient-to-br from-black to-gray-900'>
         <Routes>
           <Route path="/" element={<Lander />} />
@@ -32,14 +36,15 @@ const App = () => {
           />
           <Route 
             path="/path" 
-            element={isAuthenticated ? <div>Path Page Coming Soon</div> : <Navigate to="/login" />} 
+            element={isAuthenticated ? <Path /> : <Navigate to="/login" />} 
           />
           <Route 
             path="/jobs" 
-            element={isAuthenticated ? <div>Jobs Page Coming Soon</div> : <Navigate to="/login" />} 
+            element={isAuthenticated ? <Jobs /> : <Navigate to="/login" />} 
           />
         </Routes>
       </div>
+      </GeneratedSkillsProvider>
     </Router>
   )
 }

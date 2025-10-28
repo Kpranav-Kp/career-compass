@@ -40,11 +40,19 @@ def extract_skills_prompt(resume_text: str) -> str:
     )
 
 def recommend_skills_prompt(existing_skills: str, role: str) -> str:
+    # Improved, role-specific recommendation prompt.
+    # - Ask the model to consider seniority, industry, and time-horizon.
+    # - Instruct to exclude existing skills and return a concise JSON array of skill names.
+    # - Prefer skills that directly increase hireability (tools, frameworks, platform, and high-impact adjacent skills).
     return (
-        "You are an expert career coach. Given these existing skills and the target job role, "
-        "suggest up to 5 additional technical or professional skills that would make the candidate a stronger match for the role."
-        " Return ONLY a JSON array of skill names (no explanations). If you must pick a single top recommendation, return an array with a single item."
-        " Example: [\"System Design\"]\n\n"
+        "You are an expert hiring advisor and career coach who knows the exact skills hiring managers look for across industries.\n"
+        "Task: Given the candidate's existing skills and the exact target role (which may include seniority and industry), recommend 3-5 additional concrete skills that will most increase this candidate's hireability for that specific role.\n"
+        "Guidelines:\n"
+        "- Do NOT repeat any skill already present in the existing skills.\n"
+        "- Consider seniority (e.g., 'Senior' -> prioritize architecture, leadership, system design; 'Junior' -> prioritize hands-on tools and frameworks).\n"
+        "- Consider industry when present (e.g., 'fintech' -> prioritize security/compliance, 'healthcare' -> data privacy/standards).\n"
+        "- Prioritize transferable, high-impact skills (platforms, frameworks, cloud, data tooling, testing/CI, observability) and avoid vague concepts.\n"
+        "Output: Return ONLY a compact JSON array of skill names (strings), e.g. [\"Skill A\", \"Skill B\"]. No explanations, no extra text.\n\n"
         f"Existing skills: {existing_skills}\n"
         f"Target role: {role}\n\nRecommendations:"
     )
