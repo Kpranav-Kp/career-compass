@@ -84,19 +84,58 @@ export const skillsService = {
     },
 
     getSkillRoadmap: async (skills) => {
+        // Accept either a single skill string or an array; use the first skill if array provided
+        const skill = Array.isArray(skills) ? (skills[0] || '') : (skills || '');
         const response = await fetch(`${API_URL}/skill-roadmap`, {
             method: 'POST',
             headers: Object.assign({ 'Content-Type': 'application/json' }, getAuthHeaders()),
-            body: JSON.stringify({ skills })
+            body: JSON.stringify({ skill })
         });
         return await response.json();
     },
 
     getMarketAnalysis: async (skills) => {
+        const skill = Array.isArray(skills) ? (skills[0] || '') : (skills || '');
         const response = await fetch(`${API_URL}/skill-market-analysis`, {
             method: 'POST',
             headers: Object.assign({ 'Content-Type': 'application/json' }, getAuthHeaders()),
-            body: JSON.stringify({ skills })
+            body: JSON.stringify({ skill })
+        });
+        return await response.json();
+    }
+,
+    // Batch endpoints that accept an array of skills
+    getRoadmapForSkills: async (skillsArray) => {
+        const response = await fetch(`${API_URL}/skill-roadmap`, {
+            method: 'POST',
+            headers: Object.assign({ 'Content-Type': 'application/json' }, getAuthHeaders()),
+            body: JSON.stringify({ skills: skillsArray })
+        });
+        return await response.json();
+    },
+
+    getMarketForSkills: async (skillsArray) => {
+        const response = await fetch(`${API_URL}/skill-market-analysis`, {
+            method: 'POST',
+            headers: Object.assign({ 'Content-Type': 'application/json' }, getAuthHeaders()),
+            body: JSON.stringify({ skills: skillsArray })
+        });
+        return await response.json();
+    },
+    recommendSkills: async (skills, role) => {
+        const response = await fetch(`${API_URL}/skill-recommend`, {
+            method: 'POST',
+            headers: Object.assign({ 'Content-Type': 'application/json' }, getAuthHeaders()),
+            body: JSON.stringify({ skills, role })
+        });
+        return await response.json();
+    }
+    ,
+    getSkillProjects: async (skill, level='beginner') => {
+        const response = await fetch(`${API_URL}/skill-projects`, {
+            method: 'POST',
+            headers: Object.assign({ 'Content-Type': 'application/json' }, getAuthHeaders()),
+            body: JSON.stringify({ skill, level })
         });
         return await response.json();
     }

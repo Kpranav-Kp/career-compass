@@ -3,19 +3,20 @@ from openai import OpenAI
 from typing import List
 
 API_KEY = os.environ.get("OPENROUTER_API_KEY")
-if not API_KEY:
-    raise RuntimeError("Set OPENROUTER_API_KEY in env")
 
-# Configure client to OpenRouter endpoint
-client = OpenAI(
-    base_url="https://openrouter.ai/api/v1",
-    api_key=API_KEY,
-)
+# Configure client lazily so missing env at import time doesn't crash the app.
+def _get_openrouter_client():
+    api_key = os.environ.get("OPENROUTER_API_KEY")
+    if not api_key:
+        raise RuntimeError("Set OPENROUTER_API_KEY in env to use OpenRouter calls")
+    return OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
 
 # Model id to use. Example: mistralai/mistral-7b-instruct:free
 MODEL_ID = "mistralai/mistral-7b-instruct:free"
 
 def call_mistral_chat(prompt: str, max_tokens: int = 256, temperature: float = 0.0) -> str:
+    # Create client on-demand. This raises a helpful error if the API key is missing.
+    client = _get_openrouter_client()
     response = client.chat.completions.create(
         model=MODEL_ID,
         messages=[{"role": "user", "content": prompt}],

@@ -16,11 +16,105 @@ import uuid
 from django.utils import timezone
 from .utils.skill_extractor import extract_text_from_pdf_file
 from .utils.generator import call_mistral_chat, extract_skills_prompt, recommend_skills_prompt
+from .utils.lightcast_service import aggregate_lightcast_skills
 import traceback
 import json
+import logging
+from .utils.langchain_service import (
+    generate_skill_roadmap,
+    generate_project_ideas,
+    analyze_market_demand,
+    generate_recommended_skills,
+    generate_roadmap_for_skills_openrouter,
+    analyze_market_for_skills_openrouter,
+)
 
+logger = logging.getLogger(__name__)
 SALT = "8b4f6b2cc1868d75ef79e5cfb8779c11b6a374bf0fce05b485581bf4e1e25b96c8c2855015de8449"
 URL = "http://localhost:3000"
+
+class SkillRoadmapView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    
+    def post(self, request, *args, **kwargs):
+        # Accept either a single 'skill' string or a list 'skills'
+        skills = request.data.get('skills') or request.data.get('skill')
+        # Normalize to a list of lowercase skill names
+        if isinstance(skills, str):
+            skills = [skills]
+        if not skills or not isinstance(skills, list):
+            return Response({"error": "Skill(s) is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        skills_normalized = [str(s).strip().lower() for s in skills if s and str(s).strip()]
+        if not skills_normalized:
+            return Response({"error": "No valid skills provided"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            # Prefer the OpenRouter batch generator when multiple skills provided
+            roadmap = generate_roadmap_for_skills_openrouter(skills_normalized) or {}
+            return Response(roadmap, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({"error": f"Failed to generate roadmap: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class ProjectIdeasView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    
+    def post(self, request, *args, **kwargs):
+        skill = request.data.get('skill')
+        level = request.data.get('level', 'beginner')
+        
+        if not skill:
+            return Response({"error": "Skill is required"}, status=status.HTTP_400_BAD_REQUEST)
+            
+        try:
+            projects = generate_project_ideas(skill, level)
+            return Response(projects, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response(
+                {"error": f"Failed to generate project ideas: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+class SkillMarketAnalysisView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        skills = request.data.get('skills') or request.data.get('skill')
+        if isinstance(skills, str):
+            skills = [skills]
+        if not skills or not isinstance(skills, list):
+            return Response({"error": "Skill(s) is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        skills_normalized = [str(s).strip().lower() for s in skills if s and str(s).strip()]
+        if not skills_normalized:
+            return Response({"error": "No valid skills provided"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            analysis = analyze_market_for_skills_openrouter(skills_normalized) or {}
+            return Response(analysis, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({"error": f"Failed to analyze market demand: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class SkillRecommendView(APIView):
+    # Ensure no authentication is enforced so frontend can call this endpoint
+    # without needing a token (permission still AllowAny).
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        skills = request.data.get('skills', [])
+        role = request.data.get('role')
+        if not isinstance(skills, list):
+            return Response({"error": "skills must be a list"}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            recs = generate_recommended_skills(skills, role)
+            return Response({"recommended_skills": recs}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({"error": f"Failed to generate recommendations: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 def mail_template(content, button_url, button_text):
@@ -76,21 +170,36 @@ class ResumeSkillExtractionView(APIView):
             # 3) call mistral to recommend additional skills (if role provided)
             recommended_skills = []
             if role:
-                prompt_rec = recommend_skills_prompt(
-                    ", ".join(extracted_skills), role)
-                rec_text = call_mistral_chat(prompt_rec, max_tokens=200, temperature=0.2)
-                # parse JSON array expected from the prompt; fallback to comma-split
                 try:
-                    parsed_rec = json.loads(rec_text)
-                    if isinstance(parsed_rec, list):
-                        recommended_skills = [s.strip() for s in parsed_rec if isinstance(s, str) and s.strip()]
+                    # Prefer server-side multimodel recommender (HF-first)
+                    recommended_skills = generate_recommended_skills(extracted_skills, role)
                 except Exception:
-                    recommended_skills = [s.strip() for s in rec_text.split(",") if s.strip()]
-                # Return only the single most relevant recommendation for the role
+                    # Fallback to the older mistral call if the recommender fails
+                    prompt_rec = recommend_skills_prompt(
+                        ", ".join(extracted_skills), role)
+                    rec_text = call_mistral_chat(prompt_rec, max_tokens=200, temperature=0.2)
+                    # parse JSON array expected from the prompt; fallback to comma-split
+                    try:
+                        parsed_rec = json.loads(rec_text)
+                        if isinstance(parsed_rec, list):
+                            recommended_skills = [s.strip() for s in parsed_rec if isinstance(s, str) and s.strip()]
+                    except Exception:
+                        recommended_skills = [s.strip() for s in rec_text.split(",") if s.strip()]
+                # keep up to 8 recommendations (server returns prioritized list)
                 if recommended_skills:
-                    recommended_skills = [recommended_skills[0]]
+                    recommended_skills = recommended_skills[:8]
 
             # 4) save to DB
+            # 4a) get aggregated important skills from Lightcast (optional)
+            important_skills = []
+            try:
+                # Use LIGHTCAST_API_KEY from Django settings; aggregate_lightcast_skills
+                # will return [] if key is missing or extraction failed.
+                important_skills = aggregate_lightcast_skills(extracted_skills, top_n=10)
+            except Exception:
+                # Don't fail the whole flow if Lightcast integration errors
+                important_skills = []
+
             # reset file pointer before saving
             try:
                 file_obj.seek(0)
@@ -107,12 +216,92 @@ class ResumeSkillExtractionView(APIView):
             )
             serializer = ResumeSerializer(resume)
 
-            # 5) return JSON
+            # 5) Determine issues with extraction (so frontend can show helpful messages)
+            extraction_issue = None
+            if not extracted_skills:
+                # Heuristic checks: empty resume text means bad read; extremely long resumes
+                # may have been truncated or exceeded model limits.
+                if not resume_text or not resume_text.strip():
+                    extraction_issue = "bad_read"
+                elif len(resume_text) > 50000:
+                    extraction_issue = "input_too_long"
+                elif not extracted_text or not extracted_text.strip():
+                    extraction_issue = "model_failed_to_extract"
+                else:
+                    extraction_issue = "no_skills_found"
+
+            # 6) Generate insights — use the extracted skills as the authoritative source
+            # per request (if there are no extracted skills we still return helpful message).
+            # Use lower-case normalized skills to match generator expectations
+            skills_to_generate = [s.strip().lower() for s in extracted_skills][:5] if extracted_skills else []
+
+            roadmap_json = {}
+            market_json = {}
+            try:
+                if skills_to_generate:
+                    # Prefer OpenRouter-based generators for roadmap and market analysis
+                    roadmap_json = generate_roadmap_for_skills_openrouter(skills_to_generate) or {}
+                    market_json = analyze_market_for_skills_openrouter(skills_to_generate) or {}
+            except Exception as e:
+                logger.exception(f"OpenRouter generation error: {e}")
+
+            skill_insights = []
+            for skill in skills_to_generate:
+                try:
+                    sanitized_skill = skill.strip()[:100]
+
+                    # Try to extract per-skill roadmap and projects from roadmap_json
+                    roadmap_for_skill = {}
+                    try:
+                        roadmap_block = roadmap_json.get("roadmap", {})
+                        # Keys may be exact skill names or normalized; try both
+                        roadmap_for_skill = roadmap_block.get(sanitized_skill) or {}
+                    except Exception:
+                        roadmap_for_skill = {}
+
+                    # Try to extract market data
+                    market_for_skill = {}
+                    try:
+                        skills_block = market_json.get("skills", {})
+                        market_for_skill = skills_block.get(sanitized_skill) or {}
+                    except Exception:
+                        market_for_skill = {}
+
+                    # Derive project ideas: prefer explicit projects in roadmap, else empty list
+                    project_ideas = []
+                    try:
+                        if isinstance(roadmap_for_skill, dict):
+                            # roadmap_for_skill may include a 'projects' key or nested 'levels' entries
+                            project_ideas = roadmap_for_skill.get("projects") or []
+                            if not project_ideas:
+                                # search levels for 'projects'
+                                levels = roadmap_for_skill.get("levels") or []
+                                for lvl in levels:
+                                    if isinstance(lvl, dict) and lvl.get("projects"):
+                                        project_ideas.extend(lvl.get("projects"))
+                    except Exception:
+                        project_ideas = []
+
+                    skill_insights.append({
+                        "skill": sanitized_skill,
+                        "relevance_score": None,
+                        "roadmap": roadmap_for_skill,
+                        "market_analysis": market_for_skill,
+                        "project_ideas": project_ideas
+                    })
+                except Exception as e:
+                    logger.error(f"Failed to build insights for skill {skill}: {str(e)}")
+                    continue
+
+            # 7) return JSON with insights for top skills
             return Response({
                 "status": "success",
                 "data": serializer.data,
                 "extracted_skills": extracted_skills,
-                "recommended_skills": recommended_skills
+                "recommended_skills": recommended_skills,
+                "skill_insights": skill_insights,
+                "important_skills": important_skills,
+                "extraction_issue": extraction_issue
             }, status=status.HTTP_201_CREATED)
 
         except Exception as e:
