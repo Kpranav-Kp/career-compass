@@ -1,12 +1,12 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import Lander from './Componants/Lander';
-import Login from './Componants/Login';
-import Signup from './Componants/Signup';
-import Main from './Componants/Main';
-import About from './Componants/About';
-import Path from './Componants/Path';
-import Jobs from './Componants/Jobs';
+import Lander from './Components/Lander';
+import Login from './Components/Login';
+import Signup from './Components/Signup';
+import Main from './Components/Main';
+import About from './Components/About';
+import Path from './Components/Path';
+import Jobs from './Components/Jobs';
 import { useAuth } from './context/AuthContext';
 import { GeneratedSkillsProvider } from './context/GeneratedSkillsContext';
 
