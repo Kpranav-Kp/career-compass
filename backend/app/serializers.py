@@ -9,7 +9,6 @@ class ResumeSerializer(serializers.ModelSerializer):
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        # Only expose the fields required for registration/login
         fields = ["name", "email", "password"]
 
 

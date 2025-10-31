@@ -6,7 +6,6 @@ from .views import (
     ForgotPasswordView, 
     ResetPasswordView,
     SkillRoadmapView,
-    ProjectIdeasView,
     SkillMarketAnalysisView,
     SkillRecommendView,
 )
@@ -19,6 +18,5 @@ urlpatterns = [
     path('resetPassword', ResetPasswordView.as_view(), name='resetPassword'),
     path('skill-roadmap', SkillRoadmapView.as_view(), name='skill_roadmap'),
     path('skill-recommend', SkillRecommendView.as_view(), name='skill_recommend'),
-    path('skill-projects', ProjectIdeasView.as_view(), name='skill_projects'),
     path('skill-market-analysis', SkillMarketAnalysisView.as_view(), name='skill_market_analysis'),
 ]

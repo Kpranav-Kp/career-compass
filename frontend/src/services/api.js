@@ -1,6 +1,5 @@
 const API_URL = 'http://localhost:8000/api/v1';
 
-// Helper to return Authorization headers only when token appears valid.
 function getAuthHeaders() {
     const token = localStorage.getItem('token');
     if (!token) return {};
@@ -9,7 +8,6 @@ function getAuthHeaders() {
     return { 'Authorization': `Bearer ${token}` };
 }
 
-// Auth services
 export const authService = {
     login: async (email, password) => {
         const response = await fetch(`${API_URL}/login`, {
@@ -70,7 +68,6 @@ export const authService = {
     }
 };
 
-// Skills services
 export const skillsService = {
     extractSkills: async (file, role) => {
         const formData = new FormData();
@@ -84,7 +81,6 @@ export const skillsService = {
     },
 
     getSkillRoadmap: async (skills) => {
-        // Accept either a single skill string or an array; use the first skill if array provided
         const skill = Array.isArray(skills) ? (skills[0] || '') : (skills || '');
         const response = await fetch(`${API_URL}/skill-roadmap`, {
             method: 'POST',
@@ -104,7 +100,6 @@ export const skillsService = {
         return await response.json();
     }
 ,
-    // Batch endpoints that accept an array of skills
     getRoadmapForSkills: async (skillsArray) => {
         const response = await fetch(`${API_URL}/skill-roadmap`, {
             method: 'POST',

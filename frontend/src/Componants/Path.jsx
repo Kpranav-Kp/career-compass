@@ -11,7 +11,6 @@ const Path = () => {
   const [showPaid, setShowPaid] = useState(false);
   const [sessionKey, setSessionKey] = useState(null);
 
-  // Generate a session key on mount and store roadmaps in sessionStorage
   useEffect(() => {
     const key = sessionStorage.getItem('roadmapSessionKey');
     if (key) {
@@ -31,14 +30,12 @@ const Path = () => {
     }
   }, []);
 
-  // Save roadmapMap to sessionStorage whenever it changes
   useEffect(() => {
     if (sessionKey && Object.keys(roadmapMap).length > 0) {
       sessionStorage.setItem('roadmapData', JSON.stringify(roadmapMap));
     }
   }, [roadmapMap, sessionKey]);
 
-  // Clear cache when new resume is uploaded
   useEffect(() => {
     if (!sessionKey || !generatedSkills || generatedSkills.length === 0) return;
     const cachedSkills = sessionStorage.getItem('cachedSkills');
@@ -70,23 +67,14 @@ const Path = () => {
   const generateForSkill = async (skill) => {
     if (!skill) return;
     if (roadmapMap[skill]) {
-      console.log('Roadmap already exists for', skill, '- skipping API call');
+      console.log('Roadmap already exists for', skill);
       return;
     }
-    if (loadingSkill === skill) {
-      console.log('Already loading roadmap for', skill);
-      return;
-    }
+    if (loadingSkill === skill) return;
 
-    console.log('Fetching roadmap for', skill, 'from API...');
     setLoadingSkill(skill);
     try {
       const res = await skillsService.getSkillRoadmap(skill.toLowerCase());
-      console.log('=== ROADMAP BACKEND RESPONSE START ===');
-      console.log('Skill:', skill);
-      console.log('Response Type:', typeof res);
-      console.log('Full Response:', res);
-      console.log('=== ROADMAP BACKEND RESPONSE END ===');
       setRoadmapMap(prev => ({ ...prev, [skill]: res || null }));
     } catch (e) {
       console.error('Failed to generate roadmap for skill', e);
@@ -96,27 +84,36 @@ const Path = () => {
     }
   };
 
-  const exportAsTxt = (skillName, roadmapObj) => {
-    const lines = [];
-    lines.push(`Roadmap for: ${skillName}\n`);
+  const exportAsTxt = (skillName, roadmapData) => {
+    const lines = [`Roadmap for: ${skillName}\n`];
     try {
-      if (roadmapObj.prerequisites) {
-        lines.push('Prerequisites:');
-        lines.push(Array.isArray(roadmapObj.prerequisites) ? roadmapObj.prerequisites.join(', ') : String(roadmapObj.prerequisites));
-        lines.push('\n');
+      if (roadmapData.market_relevance) {
+        lines.push(`Market Relevance: ${roadmapData.market_relevance}\n`);
       }
-      if (roadmapObj.levels) {
-        lines.push('Learning Path:');
-        roadmapObj.levels.forEach((lvl, i) => {
-          const title = lvl.level || `Level ${i+1}`;
-          lines.push(`${i+1}. ${title}`);
+      if (roadmapData.prerequisites?.length) {
+        lines.push('Prerequisites:');
+        roadmapData.prerequisites.forEach(p => lines.push(`  - ${p}`));
+        lines.push('');
+      }
+      if (roadmapData.levels?.length) {
+        lines.push('Learning Path:\n');
+        roadmapData.levels.forEach((lvl, i) => {
+          lines.push(`${i+1}. ${lvl.level || `Level ${i+1}`}`);
           if (lvl.description) lines.push(`   ${lvl.description}`);
           if (lvl.timeframe) lines.push(`   Timeframe: ${lvl.timeframe}`);
-          if (lvl.projects) lines.push(`   Projects: ${lvl.projects.join('; ')}`);
+          if (lvl.projects?.length) {
+            lines.push('   Projects:');
+            lvl.projects.forEach(p => lines.push(`     - ${p}`));
+          }
+          if (lvl.resources?.length) {
+            lines.push('   Resources:');
+            lvl.resources.forEach(r => lines.push(`     - ${r}`));
+          }
+          lines.push('');
         });
       }
     } catch (e) {
-      lines.push(JSON.stringify(roadmapObj, null, 2));
+      lines.push(JSON.stringify(roadmapData, null, 2));
     }
 
     const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
@@ -153,13 +150,13 @@ const Path = () => {
           {skillsToShow.map((skill, idx) => {
             const data = roadmapMap[skill];
             const isLoading = loadingSkill === skill;
+            const roadmapWrapper = data?.roadmap || {};
+            const skillKey = Object.keys(roadmapWrapper).find(k => k.toLowerCase() === skill.toLowerCase());
+            const roadmapData = skillKey ? roadmapWrapper[skillKey] : null;
             
-            // Parse the response structure from backend
-            const roadmapData = data?.roadmap?.[skill] || data?.roadmap || null;
             const levels = roadmapData?.levels || [];
             const prereqs = roadmapData?.prerequisites || [];
             const marketRelevance = roadmapData?.market_relevance || '';
-            
             const openForSkill = openLevels[skill] || {};
 
             return (
@@ -193,7 +190,7 @@ const Path = () => {
                       </div>
                     )}
 
-                    {prereqs && prereqs.length > 0 && (
+                    {prereqs.length > 0 && (
                       <div className='text-sm text-white/70 bg-black/10 p-3 rounded'>
                         <strong className='text-white/90'>Prerequisites:</strong>
                         <ul className='list-disc list-inside ml-2 mt-1'>
@@ -202,7 +199,7 @@ const Path = () => {
                       </div>
                     )}
 
-                    {levels && levels.length > 0 ? (
+                    {levels.length > 0 ? (
                       <div className='space-y-2'>
                         {levels.map((lvl, i) => {
                           const lvlTitle = lvl.level || `Level ${i+1}`;
@@ -233,7 +230,7 @@ const Path = () => {
                                     </div>
                                   )}
 
-                                  {projects && projects.length > 0 && (
+                                  {projects.length > 0 && (
                                     <div className='mb-4'>
                                       <h4 className='text-white/90 font-semibold mb-2'>Projects:</h4>
                                       <ul className='list-disc list-inside ml-2 space-y-1'>
@@ -244,28 +241,24 @@ const Path = () => {
                                     </div>
                                   )}
 
-                                  {resources && resources.length > 0 && (
-                                    <div>
+                                  {resources.length > 0 && (
+                                    <div className='mb-4'>
                                       <h4 className='text-white/90 font-semibold mb-2'>Free Resources:</h4>
                                       <ul className='list-disc list-inside ml-2 space-y-1'>
                                         {resources.map((res, k) => (
-                                          <li key={k} className='text-sm'>
-                                            <a className='text-[#0089ED] hover:underline' href='#' target='_blank' rel='noreferrer'>
-                                              {res}
-                                            </a>
-                                          </li>
+                                          <li key={k} className='text-sm text-[#0089ED]'>{res}</li>
                                         ))}
                                       </ul>
                                     </div>
                                   )}
 
                                   {showPaid && (
-                                    <div className='mt-4 pt-3 border-t border-white/10'>
+                                    <div className='pt-3 border-t border-white/10'>
                                       <h4 className='text-[#FFB74D] font-semibold mb-2'>Paid Course Suggestions:</h4>
                                       <ul className='list-disc list-inside ml-2 space-y-1'>
-                                        <li className='text-sm text-white/70'>Coursera: {skill} - specialization</li>
-                                        <li className='text-sm text-white/70'>Udemy: {skill} - hands-on</li>
-                                        <li className='text-sm text-white/70'>Pluralsight: {skill} - path</li>
+                                        <li className='text-sm text-white/70'>Coursera: {skill} specialization</li>
+                                        <li className='text-sm text-white/70'>Udemy: {skill} hands-on course</li>
+                                        <li className='text-sm text-white/70'>Pluralsight: {skill} learning path</li>
                                       </ul>
                                     </div>
                                   )}

@@ -10,7 +10,6 @@ export const AuthProvider = ({ children }) => {
     useEffect(() => {
         const token = localStorage.getItem('token');
         if (token) {
-            // You might want to validate the token here
             setUser({ token });
         }
         setLoading(false);
@@ -18,7 +17,6 @@ export const AuthProvider = ({ children }) => {
 
     const login = async (email, password) => {
         if (isLoggingIn) {
-            // Prevent overlapping login requests (can happen if UI triggers multiple submits)
             return;
         }
         setIsLoggingIn(true);

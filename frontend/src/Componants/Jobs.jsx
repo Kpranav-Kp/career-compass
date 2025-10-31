@@ -10,19 +10,15 @@ const Jobs = () => {
   const [sessionKey, setSessionKey] = useState(null);
   const [hasFetched, setHasFetched] = useState(false);
 
-  // Generate a session key on mount and load cached market data
   useEffect(() => {
     const key = sessionStorage.getItem('marketSessionKey');
     if (key) {
       setSessionKey(key);
-      // Load cached market data from sessionStorage
       const cached = sessionStorage.getItem('marketData');
       if (cached) {
         try {
-          const parsedData = JSON.parse(cached);
-          setMarket(parsedData);
-          setHasFetched(true); // Mark as already fetched
-          console.log('Loaded cached market data from sessionStorage');
+          setMarket(JSON.parse(cached));
+          setHasFetched(true);
         } catch (e) {
           console.error('Failed to parse cached market data', e);
         }
@@ -34,16 +30,12 @@ const Jobs = () => {
     }
   }, []);
 
-  // Clear cache when new resume is uploaded (detected by generatedSkills change)
   useEffect(() => {
     if (!sessionKey || !generatedSkills || generatedSkills.length === 0) return;
-
     const cachedSkills = sessionStorage.getItem('cachedMarketSkills');
     const currentSkills = JSON.stringify(generatedSkills);
     
     if (cachedSkills && cachedSkills !== currentSkills) {
-      // Skills changed - clear cache and reset state
-      console.log('Skills changed - clearing market cache');
       const newKey = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       sessionStorage.setItem('marketSessionKey', newKey);
       sessionStorage.removeItem('marketData');
@@ -52,40 +44,26 @@ const Jobs = () => {
       setMarket(null);
       setHasFetched(false);
     } else if (!cachedSkills) {
-      // First time - save skills
       sessionStorage.setItem('cachedMarketSkills', currentSkills);
     }
   }, [generatedSkills, sessionKey]);
 
-  // Fetch market data only once if not cached
   useEffect(() => {
     const fetchMarketData = async () => {
-      // Don't fetch if:
-      // 1. No skills available
-      // 2. Already have market data
-      // 3. Already fetched in this session
-      // 4. Currently loading
-      if (!generatedSkills || generatedSkills.length === 0) return;
-      if (market || hasFetched || loading) {
-        console.log('Skipping market fetch - data already available');
-        return;
-      }
+      if (!generatedSkills || generatedSkills.length === 0 || market || hasFetched || loading) return;
 
-      console.log('Fetching market data from API...');
       setLoading(true);
       try {
         const res = await skillsService.getMarketForSkills(generatedSkills.map(s => String(s).toLowerCase()));
         setMarket(res);
         setHasFetched(true);
         
-        // Save to sessionStorage
         if (res && sessionKey) {
           sessionStorage.setItem('marketData', JSON.stringify(res));
-          console.log('Saved market data to sessionStorage');
         }
       } catch (e) {
         console.error('Failed to load market insights', e);
-        setHasFetched(true); // Prevent retry loops
+        setHasFetched(true);
       } finally {
         setLoading(false);
       }
@@ -118,8 +96,10 @@ const Jobs = () => {
         {!loading && market && (
           <div className='space-y-6'>
             {(() => {
-              const block = market.skills || market;
-              if (!block || Object.keys(block).length === 0) {
+              // Handle response: {skills: {skill_name: {...}}}
+              const skillsData = market.skills || {};
+              
+              if (!skillsData || Object.keys(skillsData).length === 0) {
                 return (
                   <div className='bg-black/20 border border-[#0089ED]/10 rounded-lg p-6'>
                     <p className='text-white/70'>No market insights available for the generated skills.</p>
@@ -128,33 +108,31 @@ const Jobs = () => {
               }
 
               return generatedSkills.map((skill, idx) => {
-                const key = String(skill).toLowerCase();
-                const data = block[key] || block[skill] || {};
-                const relevance = (data.relevance_score ?? data.relevance ?? null);
-                const trend = data.trend || data.growth || '';
-                const industries = Array.isArray(data.industries) ? data.industries : (data.industry_sectors || []);
-                const roles = Array.isArray(data.related_roles) ? data.related_roles : (data.roles || []);
-                const complementary = Array.isArray(data.complementary_skills) ? data.complementary_skills : (data.complements || []);
-                const insights = data.insights || data.future_outlook || data.summary || '';
-                const demand = data.demand || '';
+                const skillKey = Object.keys(skillsData).find(k => k.toLowerCase() === skill.toLowerCase());
+                const data = skillKey ? skillsData[skillKey] : {};
+                
+                const relevance = data.relevance_score ?? null;
+                const trend = data.trend || '';
+                const industries = data.industries || [];
+                const roles = data.related_roles || [];
+                const complementary = data.complementary_skills || [];
+                const insights = data.insights || '';
 
                 const scorePercent = (typeof relevance === 'number' && !isNaN(relevance)) 
                   ? Math.max(0, Math.min(100, Math.round(relevance * 10))) 
                   : null;
 
-                // Determine demand level color
-                let demandColor = 'bg-gray-500';
-                let demandText = demand || 'Unknown';
-                
-                if (demand) {
-                  const demandLower = demand.toLowerCase();
-                  if (demandLower.includes('high') || demandLower.includes('very high')) {
-                    demandColor = 'bg-green-500';
-                  } else if (demandLower.includes('medium') || demandLower.includes('moderate')) {
-                    demandColor = 'bg-yellow-500';
-                  } else if (demandLower.includes('low')) {
-                    demandColor = 'bg-red-500';
-                  }
+                let trendColor = 'bg-gray-500';
+                let trendIcon = '📊';
+                if (trend.toLowerCase().includes('grow')) {
+                  trendColor = 'bg-green-500';
+                  trendIcon = '📈';
+                } else if (trend.toLowerCase().includes('declin')) {
+                  trendColor = 'bg-red-500';
+                  trendIcon = '📉';
+                } else if (trend.toLowerCase().includes('stable')) {
+                  trendColor = 'bg-blue-500';
+                  trendIcon = '➡️';
                 }
 
                 return (
@@ -162,38 +140,28 @@ const Jobs = () => {
                     <div className='flex items-center justify-between mb-4'>
                       <h3 className='text-white text-xl font-semibold'>{skill}</h3>
                       {trend && (
-                        <div className='text-sm text-white/70 bg-black/30 px-3 py-1 rounded-full'>
-                          📈 Trend: {trend}
+                        <div className={`text-sm text-white px-3 py-1 rounded-full ${trendColor}`}>
+                          {trendIcon} {trend}
                         </div>
                       )}
                     </div>
 
                     <div className='space-y-4'>
                       {/* Demand Score */}
-                      <div>
-                        <div className='flex items-center justify-between mb-2'>
-                          <strong className='text-white/90'>Market Demand:</strong>
-                          {demandText && (
-                            <span className={`text-xs px-2 py-1 rounded ${demandColor} text-white font-semibold`}>
-                              {demandText}
-                            </span>
-                          )}
-                        </div>
-                        {relevance !== null ? (
+                      {relevance !== null && (
+                        <div>
+                          <div className='flex items-center justify-between mb-2'>
+                            <strong className='text-white/90'>Market Demand Score:</strong>
+                            <span className='text-white/80 font-semibold'>{relevance}/10</span>
+                          </div>
                           <div className='w-full bg-white/5 rounded-full h-4'>
                             <div 
-                              className={`${demandColor} h-4 rounded-full transition-all duration-500 flex items-center justify-end pr-2`}
-                              style={{ width: `${scorePercent ?? 0}%` }}
-                            >
-                              {scorePercent !== null && scorePercent > 10 && (
-                                <span className='text-xs text-white font-semibold'>{scorePercent}%</span>
-                              )}
-                            </div>
+                              className='bg-green-500 h-4 rounded-full transition-all duration-500'
+                              style={{ width: `${scorePercent}%` }}
+                            />
                           </div>
-                        ) : (
-                          <div className='text-sm text-white/60'>Demand data not available</div>
-                        )}
-                      </div>
+                        </div>
+                      )}
 
                       {/* Industries */}
                       {industries.length > 0 && (

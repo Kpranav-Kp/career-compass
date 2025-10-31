@@ -32,18 +32,13 @@ const Main = () => {
             setRecommendedSkills(data.recommended_skills);
             setGeneratedSkills(data.recommended_skills);
           } else {
-            // clear previous generated skills on new upload if none returned
             clearGeneratedSkills();
         }
       } else if (data && data.recommended_skills) {
-        // If API returns only recommended_skills, show that too
-          // In case API returns only recommended_skills
           setSkills([]);
           setRecommendedSkills(data.recommended_skills);
           setGeneratedSkills(data.recommended_skills);
-          // leave extractedSkills alone (don't overwrite) unless API provided them
       } else if (data && data.data && data.data.extracted_skills) {
-        // fallback if API nested differently
         setSkills(data.data.extracted_skills);
           setExtractedSkills(data.data.extracted_skills);
       } else {
@@ -76,8 +71,6 @@ const Main = () => {
       setIsRecLoading(false);
     }
   };
-
-  // Details per-skill removed per UX request
 
   const fetchAggregateRoadmap = async () => {
     // Prefer generated skills (recommendations). If none, do nothing per requirements.
@@ -145,8 +138,6 @@ const Main = () => {
               </button>
             </form>
           </div>
-
-          {/* Skills Card */}
           <div className='bg-black/40 backdrop-blur-sm border border-[#0089ED] rounded-3xl p-8'>
             <h2 className='text-2xl font-semibold text-white mb-6'>Your Skills</h2>
             {(!extractedSkills || extractedSkills.length === 0) ? (
@@ -169,7 +160,6 @@ const Main = () => {
               </div>
             ) : (
               <>
-                  {/* Recommend button removed from extract card per UX: use GeneratedSkills area/navigation to request recommendations or run on server */}
                   <div className='mb-4'>
                     <p className='text-white/80'>Extracted {extractedSkills ? extractedSkills.length : 0} skills.</p>
                     {(extractedSkills || []).slice(0,3).length > 0 && (
@@ -185,8 +175,6 @@ const Main = () => {
                   </div>
                 </>
             )}
-              {/* recommended and extracted skills are shown in the GeneratedSkills component below to avoid duplication */}
-            {/* GeneratedSkills component shows below the cards and allows navigating to Path/Jobs */}
             <GeneratedSkills />
             {roadmapAggregate && (
               <div className='mt-6'>

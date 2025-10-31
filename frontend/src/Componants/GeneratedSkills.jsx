@@ -8,7 +8,6 @@ const GeneratedSkills = ({ onScrollIntoView }) => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Scroll into view when either extracted or generated skills are present
     const hasAny = (generatedSkills && generatedSkills.length) || (extractedSkills && extractedSkills.length);
     if (hasAny && ref.current) {
       ref.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -54,7 +53,6 @@ const GeneratedSkills = ({ onScrollIntoView }) => {
         </div>
       </div>
 
-      {/* Navigation via top nav; removed duplicate buttons from main page to reduce clutter */}
     </div>
   );
 };

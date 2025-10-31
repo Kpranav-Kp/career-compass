@@ -25,12 +25,9 @@ const Signup = () => {
             if (!data.success) {
                 throw new Error(data.message || 'Registration failed');
             }
-            // auto-login after successful registration and redirect to main
             try {
                 await login(email, password);
-            } catch (err) {
-                // ignore login error
-            }
+            } catch (err) {}
             navigate('/main');
         } catch (err) {
             setError(err.message);

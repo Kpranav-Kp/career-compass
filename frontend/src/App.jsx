@@ -11,7 +11,6 @@ import { useAuth } from './context/AuthContext';
 import { GeneratedSkillsProvider } from './context/GeneratedSkillsContext';
 
 const App = () => {
-  // reactive auth check using AuthContext
   const { user } = useAuth();
   const isAuthenticated = !!user;
 

@@ -1,7 +1,6 @@
 from django.db import models
 
 class Resume(models.Model):
-    # store only the original filename (no file upload/storage)
     file_name = models.CharField(max_length=255, blank=True, null=True)
     role = models.CharField(max_length=120, blank=True)
     extracted_skills = models.TextField(blank=True, null=True)  # comma separated
@@ -24,7 +23,6 @@ class User(models.Model):
     name = models.CharField(max_length=255)
     email = models.EmailField(unique=True)
     password = models.CharField(max_length=255)
-    # Keep only the essential fields required for registration/login.
 
     def __str__(self) -> str:
         return self.name

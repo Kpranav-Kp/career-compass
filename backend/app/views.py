@@ -8,26 +8,16 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
 from .models import User, Token, Resume
 from .serializers import UserSerializer, TokenSerializer, ResumeSerializer
-from .utils.skill_service import create_skill_roadmap, analyze_market_relevance
 from django.conf import settings
 from datetime import datetime, timedelta
 import hashlib
 import uuid
 from django.utils import timezone
-from .utils.skill_extractor import extract_text_from_pdf_file
-from .utils.generator import call_mistral_chat, extract_skills_prompt, recommend_skills_prompt
-from .utils.lightcast_service import aggregate_lightcast_skills
 import traceback
 import json
 import logging
-from .utils.langchain_service import (
-    generate_skill_roadmap,
-    generate_project_ideas,
-    analyze_market_demand,
-    generate_recommended_skills,
-    generate_roadmap_for_skills_openrouter,
-    analyze_market_for_skills_openrouter,
-)
+from .utils.openrouter_service import generate_skill_roadmap, analyze_market_demand, recommend_skills, extract_skills_from_resume
+from .utils.skill_extractor import extract_text_from_pdf_file
 
 logger = logging.getLogger(__name__)
 SALT = "8b4f6b2cc1868d75ef79e5cfb8779c11b6a374bf0fce05b485581bf4e1e25b96c8c2855015de8449"
@@ -38,9 +28,7 @@ class SkillRoadmapView(APIView):
     permission_classes = [AllowAny]
     
     def post(self, request, *args, **kwargs):
-        # Accept either a single 'skill' string or a list 'skills'
         skills = request.data.get('skills') or request.data.get('skill')
-        # Normalize to a list of lowercase skill names
         if isinstance(skills, str):
             skills = [skills]
         if not skills or not isinstance(skills, list):
@@ -51,31 +39,11 @@ class SkillRoadmapView(APIView):
             return Response({"error": "No valid skills provided"}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            # Prefer the OpenRouter batch generator when multiple skills provided
-            roadmap = generate_roadmap_for_skills_openrouter(skills_normalized) or {}
+            roadmap = generate_skill_roadmap(skills_normalized) or {}
             return Response(roadmap, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({"error": f"Failed to generate roadmap: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-class ProjectIdeasView(APIView):
-    authentication_classes = []
-    permission_classes = [AllowAny]
-    
-    def post(self, request, *args, **kwargs):
-        skill = request.data.get('skill')
-        level = request.data.get('level', 'beginner')
-        
-        if not skill:
-            return Response({"error": "Skill is required"}, status=status.HTTP_400_BAD_REQUEST)
-            
-        try:
-            projects = generate_project_ideas(skill, level)
-            return Response(projects, status=status.HTTP_200_OK)
-        except Exception as e:
-            return Response(
-                {"error": f"Failed to generate project ideas: {str(e)}"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
 
 class SkillMarketAnalysisView(APIView):
     authentication_classes = []
@@ -93,15 +61,13 @@ class SkillMarketAnalysisView(APIView):
             return Response({"error": "No valid skills provided"}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            analysis = analyze_market_for_skills_openrouter(skills_normalized) or {}
+            analysis = analyze_market_demand(skills_normalized) or {}
             return Response(analysis, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({"error": f"Failed to analyze market demand: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class SkillRecommendView(APIView):
-    # Ensure no authentication is enforced so frontend can call this endpoint
-    # without needing a token (permission still AllowAny).
     authentication_classes = []
     permission_classes = [AllowAny]
 
@@ -111,8 +77,7 @@ class SkillRecommendView(APIView):
         if not isinstance(skills, list):
             return Response({"error": "skills must be a list"}, status=status.HTTP_400_BAD_REQUEST)
         try:
-            recs = generate_recommended_skills(skills, role)
-            # filter out any recommendations that are already in the provided skills (case-insensitive)
+            recs = recommend_skills(skills, role)
             existing = {s.strip().lower() for s in skills if s and isinstance(s, str)}
             filtered = [r for r in recs if isinstance(r, str) and r.strip().lower() not in existing]
             return Response({"recommended_skills": filtered}, status=status.HTTP_200_OK)
@@ -141,6 +106,7 @@ def mail_template(content, button_url, button_text):
 
 class ResumeSkillExtractionView(APIView):
     permission_classes = [AllowAny]
+    
     def post(self, request, *args, **kwargs):
         if 'file' not in request.FILES:
             return Response({"error": "No file provided"}, status=status.HTTP_400_BAD_REQUEST)
@@ -149,51 +115,21 @@ class ResumeSkillExtractionView(APIView):
         role = request.data.get('role', '').strip()
 
         try:
-            # 1) extract text
             resume_text = extract_text_from_pdf_file(file_obj)
             if not resume_text.strip():
-                return Response({"error": "Could not extract text from PDF"}, status=status.HTTP_400_BAD_REQUEST)
-
-            # 2) call mistral to extract skills
-            prompt_extract = extract_skills_prompt(resume_text)
-            extracted_text = call_mistral_chat(prompt_extract, max_tokens=400, temperature=0.0)
-            # Try to parse JSON array from model output first; if that fails, fall back to comma-splitting
-            extracted_skills = []
-            try:
-                parsed = json.loads(extracted_text)
-                if isinstance(parsed, list):
-                    extracted_skills = [s.strip() for s in parsed if isinstance(s, str) and s.strip()]
-            except Exception:
-                extracted_skills = [s.strip() for s in extracted_text.split(",") if s.strip()]
-
-            # NOTE: Do NOT fall back to a local keyword list here.
-            # If the model couldn't extract skills, keep extracted_skills empty and
-            # rely on the recommender (below) when a role is provided.
-
-            # 3) call mistral to recommend additional skills (if role provided)
+                return Response(
+                    {"error": "Could not extract text from PDF"}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            extracted_skills = extract_skills_from_resume(resume_text)
+            logger.info(f"OpenRouter extracted {len(extracted_skills)} skills")
             recommended_skills = []
-            if role:
-                try:
-                    # Prefer server-side multimodel recommender (HF-first)
-                    recommended_skills = generate_recommended_skills(extracted_skills, role)
-                except Exception:
-                    # Fallback to the older mistral call if the recommender fails
-                    prompt_rec = recommend_skills_prompt(
-                        ", ".join(extracted_skills), role)
-                    rec_text = call_mistral_chat(prompt_rec, max_tokens=200, temperature=0.2)
-                    # parse JSON array expected from the prompt; fallback to comma-split
-                    try:
-                        parsed_rec = json.loads(rec_text)
-                        if isinstance(parsed_rec, list):
-                            recommended_skills = [s.strip() for s in parsed_rec if isinstance(s, str) and s.strip()]
-                    except Exception:
-                        recommended_skills = [s.strip() for s in rec_text.split(",") if s.strip()]
-                # keep up to 8 recommendations (server returns prioritized list)
+            if role and extracted_skills:
+                recommended_skills = recommend_skills(extracted_skills, role)
+                logger.info(f"OpenRouter recommended {len(recommended_skills)} skills for role: {role}")
                 if recommended_skills:
                     recommended_skills = recommended_skills[:8]
 
-            # Filter out any recommended skills that are already present in the extracted_skills
-            # (case-insensitive). The user requested we do NOT run market analysis for existing skills.
             if recommended_skills and extracted_skills:
                 existing_lower = {s.strip().lower() for s in extracted_skills if s and s.strip()}
                 filtered = []
@@ -201,30 +137,16 @@ class ResumeSkillExtractionView(APIView):
                     if not s or not isinstance(s, str):
                         continue
                     if s.strip().lower() in existing_lower:
-                        # skip skills already present
                         continue
                     if s.strip() not in filtered:
                         filtered.append(s.strip())
                 recommended_skills = filtered
 
-            # 4) save to DB
-            # 4a) get aggregated important skills from Lightcast (optional)
-            important_skills = []
-            try:
-                # Use LIGHTCAST_API_KEY from Django settings; aggregate_lightcast_skills
-                # will return [] if key is missing or extraction failed.
-                important_skills = aggregate_lightcast_skills(extracted_skills, top_n=10)
-            except Exception:
-                # Don't fail the whole flow if Lightcast integration errors
-                important_skills = []
-
-            # reset file pointer before saving
             try:
                 file_obj.seek(0)
             except Exception:
                 pass
 
-            # Save only filename and skills (do not persist the uploaded file)
             filename = getattr(file_obj, 'name', None)
             resume = Resume.objects.create(
                 file_name=filename,
@@ -233,36 +155,32 @@ class ResumeSkillExtractionView(APIView):
                 recommended_skills=", ".join(recommended_skills) if recommended_skills else None
             )
             serializer = ResumeSerializer(resume)
-
-            # 5) Determine issues with extraction (so frontend can show helpful messages)
+            
             extraction_issue = None
             if not extracted_skills:
-                # Heuristic checks: empty resume text means bad read; extremely long resumes
-                # may have been truncated or exceeded model limits.
                 if not resume_text or not resume_text.strip():
                     extraction_issue = "bad_read"
                 elif len(resume_text) > 50000:
                     extraction_issue = "input_too_long"
-                elif not extracted_text or not extracted_text.strip():
-                    extraction_issue = "model_failed_to_extract"
                 else:
                     extraction_issue = "no_skills_found"
 
-            # 6) Do NOT generate roadmaps or market insights here — these are expensive
-            # operations and should be triggered on-demand (e.g., when user visits /path or /jobs).
             return Response({
                 "status": "success",
                 "data": serializer.data,
                 "extracted_skills": extracted_skills,
                 "recommended_skills": recommended_skills,
-                "important_skills": important_skills,
                 "extraction_issue": extraction_issue
             }, status=status.HTTP_201_CREATED)
 
         except Exception as e:
-            # In dev show error; in prod log error and hide details.
             tb = traceback.format_exc()
-            return Response({"status": "error", "message": str(e), "traceback": tb}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logger.error(f"Resume skill extraction error: {tb}")
+            return Response({
+                "status": "error", 
+                "message": str(e), 
+                "traceback": tb
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class ResetPasswordView(APIView):
